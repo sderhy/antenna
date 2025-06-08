@@ -11,53 +11,80 @@ import {
 } from 'react-native';
 
 const AntennaApp = () => {
+  const [mode, setMode] = useState('adjuster'); // 'adjuster' or 'calculator'
   const [measuredFreq, setMeasuredFreq] = useState('');
   const [targetFreq, setTargetFreq] = useState('');
   const [velocityFactor, setVelocityFactor] = useState('0.95');
   const [result, setResult] = useState(null);
 
-  const calculateAntennaDifference = () => {
-    // Validation des entrées
-    const measuredFreqNum = parseFloat(measuredFreq);
+  const calculateAntenna = () => {
+    // Validation des entrées selon le mode
     const targetFreqNum = parseFloat(targetFreq);
     const velocityFactorNum = parseFloat(velocityFactor);
+    let measuredFreqNum = null;
 
-    if (!measuredFreqNum || !targetFreqNum || !velocityFactorNum) {
-      Alert.alert('Erreur', 'Veuillez saisir des valeurs numériques valides');
-      return;
+    if (mode === 'adjuster') {
+      measuredFreqNum = parseFloat(measuredFreq);
+      if (!measuredFreqNum || !targetFreqNum || !velocityFactorNum) {
+        Alert.alert('Error', 'Please enter valid numeric values');
+        return;
+      }
+      if (measuredFreqNum <= 0) {
+        Alert.alert('Error', 'Measured frequency must be positive');
+        return;
+      }
+    } else {
+      if (!targetFreqNum || !velocityFactorNum) {
+        Alert.alert('Error', 'Please enter valid numeric values');
+        return;
+      }
     }
 
-    if (measuredFreqNum <= 0 || targetFreqNum <= 0 || velocityFactorNum <= 0) {
-      Alert.alert('Erreur', 'Les valeurs doivent être positives');
+    if (targetFreqNum <= 0 || velocityFactorNum <= 0) {
+      Alert.alert('Error', 'Values must be positive');
       return;
     }
 
     if (velocityFactorNum > 1) {
-      Alert.alert('Erreur', 'Le facteur de vélocité doit être ≤ 1.0');
+      Alert.alert('Error', 'Velocity factor must be ≤ 1.0');
       return;
     }
 
     // Constantes
     const speedOfLight = 299792458; // m/s
     
-    // Calcul des longueurs d'onde en mètres
-    const wavelengthMeasured = (speedOfLight * velocityFactorNum) / (measuredFreqNum * 1000000);
-    const wavelengthTarget = (speedOfLight * velocityFactorNum) / (targetFreqNum * 1000000);
-    
-    // Longueur de chaque branche du dipôle (λ/2 divisé par 2 = λ/4)
-    const lengthMeasured = wavelengthMeasured / 4;
-    const lengthTarget = wavelengthTarget / 4;
-    
-    // Différence de longueur
-    const difference = lengthMeasured - lengthTarget;
-    
-    setResult({
-      measuredLength: lengthMeasured,
-      targetLength: lengthTarget,
-      difference: difference,
-      wavelengthMeasured: wavelengthMeasured,
-      wavelengthTarget: wavelengthTarget,
-    });
+    if (mode === 'adjuster') {
+      // Mode Adjuster: calcul de la différence
+      const wavelengthMeasured = (speedOfLight * velocityFactorNum) / (measuredFreqNum * 1000000);
+      const wavelengthTarget = (speedOfLight * velocityFactorNum) / (targetFreqNum * 1000000);
+      
+      const lengthMeasured = wavelengthMeasured / 4;
+      const lengthTarget = wavelengthTarget / 4;
+      
+      const difference = lengthMeasured - lengthTarget;
+      
+      setResult({
+        mode: 'adjuster',
+        measuredLength: lengthMeasured,
+        targetLength: lengthTarget,
+        difference: difference,
+        wavelengthMeasured: wavelengthMeasured,
+        wavelengthTarget: wavelengthTarget,
+      });
+    } else {
+      // Mode Calculator: calcul simple de longueur
+      const wavelengthTarget = (speedOfLight * velocityFactorNum) / (targetFreqNum * 1000000);
+      const lengthTarget = wavelengthTarget / 4;
+      const fullDipoleLength = wavelengthTarget / 2;
+      
+      setResult({
+        mode: 'calculator',
+        targetLength: lengthTarget,
+        wavelengthTarget: wavelengthTarget,
+        fullDipoleLength: fullDipoleLength,
+        frequency: targetFreqNum,
+      });
+    }
   };
 
   const resetCalculation = () => {
@@ -67,33 +94,71 @@ const AntennaApp = () => {
     setResult(null);
   };
 
+  const switchMode = (newMode) => {
+    setMode(newMode);
+    setResult(null);
+    setMeasuredFreq('');
+    setTargetFreq('');
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>📡 Ajusteur d'Antenne</Text>
+          <Text style={styles.title}>📡 Antenna Tool</Text>
           <Text style={styles.subtitle}>
-            Calculez la différence de longueur entre deux fréquences (λ/2)
+            {mode === 'adjuster' 
+              ? 'Calculate length difference between two frequencies (λ/2)'
+              : 'Calculate antenna length for a specific frequency (λ/2)'
+            }
           </Text>
+        </View>
+
+        {/* Mode Selector */}
+        <View style={styles.modeSection}>
+          <Text style={styles.modeTitle}>Select Mode:</Text>
+          <View style={styles.modeButtons}>
+            <TouchableOpacity 
+              style={[styles.modeButton, mode === 'adjuster' && styles.modeButtonActive]}
+              onPress={() => switchMode('adjuster')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'adjuster' && styles.modeButtonTextActive]}>
+                🔧 Antenna Adjuster
+              </Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[styles.modeButton, mode === 'calculator' && styles.modeButtonActive]}
+              onPress={() => switchMode('calculator')}
+            >
+              <Text style={[styles.modeButtonText, mode === 'calculator' && styles.modeButtonTextActive]}>
+                📏 Antenna Calculator
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Input Fields */}
         <View style={styles.inputSection}>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Fréquence mesurée (MHz)</Text>
-            <TextInput
-              style={styles.input}
-              value={measuredFreq}
-              onChangeText={setMeasuredFreq}
-              placeholder="Ex: 14.200"
-              keyboardType="numeric"
-              placeholderTextColor="#999"
-            />
-          </View>
+          {mode === 'adjuster' && (
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Measured Frequency (MHz)</Text>
+              <TextInput
+                style={styles.input}
+                value={measuredFreq}
+                onChangeText={setMeasuredFreq}
+                placeholder="Ex: 14.200"
+                keyboardType="numeric"
+                placeholderTextColor="#999"
+              />
+            </View>
+          )}
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Fréquence cible (MHz)</Text>
+            <Text style={styles.label}>
+              {mode === 'adjuster' ? 'Target Frequency (MHz)' : 'Frequency (MHz)'}
+            </Text>
             <TextInput
               style={styles.input}
               value={targetFreq}
@@ -105,7 +170,7 @@ const AntennaApp = () => {
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Facteur de vélocité du câble</Text>
+            <Text style={styles.label}>Wire Velocity Factor</Text>
             <TextInput
               style={styles.input}
               value={velocityFactor}
@@ -119,8 +184,8 @@ const AntennaApp = () => {
 
         {/* Buttons */}
         <View style={styles.buttonSection}>
-          <TouchableOpacity style={styles.calculateButton} onPress={calculateAntennaDifference}>
-            <Text style={styles.calculateButtonText}>📊 Calculer</Text>
+          <TouchableOpacity style={styles.calculateButton} onPress={calculateAntenna}>
+            <Text style={styles.calculateButtonText}>📊 Calculate</Text>
           </TouchableOpacity>
           
           <TouchableOpacity style={styles.resetButton} onPress={resetCalculation}>
@@ -131,70 +196,125 @@ const AntennaApp = () => {
         {/* Results */}
         {result && (
           <View style={styles.resultSection}>
-            <Text style={styles.resultTitle}>📈 Résultats</Text>
+            <Text style={styles.resultTitle}>📈 Results</Text>
             
-            <View style={styles.resultCard}>
-              <Text style={styles.resultLabel}>Longueur d'onde mesurée:</Text>
-              <Text style={styles.resultValue}>
-                {result.wavelengthMeasured.toFixed(3)} m
-              </Text>
-            </View>
+            {result.mode === 'adjuster' ? (
+              // Adjuster Results
+              <>
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Measured wavelength:</Text>
+                  <Text style={styles.resultValue}>
+                    {result.wavelengthMeasured.toFixed(3)} m
+                  </Text>
+                </View>
 
-            <View style={styles.resultCard}>
-              <Text style={styles.resultLabel}>Longueur d'onde cible:</Text>
-              <Text style={styles.resultValue}>
-                {result.wavelengthTarget.toFixed(3)} m
-              </Text>
-            </View>
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Target wavelength:</Text>
+                  <Text style={styles.resultValue}>
+                    {result.wavelengthTarget.toFixed(3)} m
+                  </Text>
+                </View>
 
-            <View style={styles.resultCard}>
-              <Text style={styles.resultLabel}>Longueur branche mesurée (λ/4):</Text>
-              <Text style={styles.resultValue}>
-                {result.measuredLength.toFixed(3)} m ({(result.measuredLength * 100).toFixed(1)} cm)
-              </Text>
-            </View>
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Measured branch length (λ/4):</Text>
+                  <Text style={styles.resultValue}>
+                    {result.measuredLength.toFixed(3)} m ({(result.measuredLength * 100).toFixed(1)} cm)
+                  </Text>
+                </View>
 
-            <View style={styles.resultCard}>
-              <Text style={styles.resultLabel}>Longueur branche cible (λ/4):</Text>
-              <Text style={styles.resultValue}>
-                {result.targetLength.toFixed(3)} m ({(result.targetLength * 100).toFixed(1)} cm)
-              </Text>
-            </View>
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Target branch length (λ/4):</Text>
+                  <Text style={styles.resultValue}>
+                    {result.targetLength.toFixed(3)} m ({(result.targetLength * 100).toFixed(1)} cm)
+                  </Text>
+                </View>
 
-            <View style={[styles.resultCard, styles.differenceCard]}>
-              <Text style={styles.resultLabel}>Différence de longueur:</Text>
-              <Text style={[styles.resultValue, styles.differenceValue]}>
-                {result.difference > 0 ? '+' : ''}{result.difference.toFixed(4)} m
-              </Text>
-              <Text style={[styles.resultValue, styles.differenceValue]}>
-                ({result.difference > 0 ? '+' : ''}{(result.difference * 100).toFixed(2)} cm)
-              </Text>
-              <Text style={styles.adjustmentText}>
-                {result.difference > 0 
-                  ? '✂️ Raccourcir les branches de cette longueur' 
-                  : '📏 Allonger les branches de cette longueur'}
-              </Text>
-            </View>
+                <View style={[styles.resultCard, styles.differenceCard]}>
+                  <Text style={styles.resultLabel}>Length difference:</Text>
+                  <Text style={[styles.resultValue, styles.differenceValue]}>
+                    {result.difference > 0 ? '+' : ''}{result.difference.toFixed(4)} m
+                  </Text>
+                  <Text style={[styles.resultValue, styles.differenceValue]}>
+                    ({result.difference > 0 ? '+' : ''}{(result.difference * 100).toFixed(2)} cm)
+                  </Text>
+                  <Text style={styles.adjustmentText}>
+                    {result.difference > 0 
+                      ? '✂️ Shorten branches by this length' 
+                      : '📏 Lengthen branches by this length'}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              // Calculator Results
+              <>
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Frequency:</Text>
+                  <Text style={styles.resultValue}>
+                    {result.frequency.toFixed(3)} MHz
+                  </Text>
+                </View>
+
+                <View style={styles.resultCard}>
+                  <Text style={styles.resultLabel}>Wavelength:</Text>
+                  <Text style={styles.resultValue}>
+                    {result.wavelengthTarget.toFixed(3)} m
+                  </Text>
+                </View>
+
+                <View style={[styles.resultCard, styles.calculatorCard]}>
+                  <Text style={styles.resultLabel}>Full dipole length (λ/2):</Text>
+                  <Text style={[styles.resultValue, styles.calculatorValue]}>
+                    {result.fullDipoleLength.toFixed(3)} m ({(result.fullDipoleLength * 100).toFixed(1)} cm)
+                  </Text>
+                </View>
+
+                <View style={[styles.resultCard, styles.calculatorCard]}>
+                  <Text style={styles.resultLabel}>Each branch length (λ/4):</Text>
+                  <Text style={[styles.resultValue, styles.calculatorValue]}>
+                    {result.targetLength.toFixed(3)} m ({(result.targetLength * 100).toFixed(1)} cm)
+                  </Text>
+                </View>
+
+                <View style={styles.resultCard}>
+                  <Text style={styles.adjustmentText}>
+                    📐 Cut each branch to the specified length
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
         )}
 
         {/* Info Section */}
         <View style={styles.infoSection}>
-          <Text style={styles.infoTitle}>ℹ️ Informations</Text>
+          <Text style={styles.infoTitle}>ℹ️ Information</Text>
+          {mode === 'adjuster' ? (
+            <>
+              <Text style={styles.infoText}>
+                • This tool calculates the length difference needed to adjust a λ/2 dipole
+              </Text>
+              <Text style={styles.infoText}>
+                • Each dipole branch measures λ/4 of the wavelength
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.infoText}>
+                • This tool calculates the optimal length for a λ/2 dipole antenna
+              </Text>
+              <Text style={styles.infoText}>
+                • Cut two branches of the calculated λ/4 length
+              </Text>
+            </>
+          )}
           <Text style={styles.infoText}>
-            • Cette application calcule la différence de longueur nécessaire pour ajuster un dipôle λ/2
-          </Text>
-          <Text style={styles.infoText}>
-            • Chaque branche du dipôle mesure λ/4 de la longueur d'onde
-          </Text>
-          <Text style={styles.infoText}>
-            • Le facteur de vélocité typique est de 0.95 pour la plupart des câbles
+            • Typical velocity factor is 0.95 for most wires
           </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
-}; //AntennaApp
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -227,6 +347,43 @@ const styles = StyleSheet.create({
     color: '#7f8c8d',
     textAlign: 'center',
     paddingHorizontal: 20,
+  },
+  modeSection: {
+    marginBottom: 25,
+  },
+  modeTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2c3e50',
+    marginBottom: 15,
+    textAlign: 'center',
+  },
+  modeButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  modeButton: {
+    flex: 0.48,
+    paddingVertical: 15,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#ddd',
+    backgroundColor: '#fff',
+    alignItems: 'center',
+  },
+  modeButtonActive: {
+    borderColor: '#3498db',
+    backgroundColor: '#3498db',
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#7f8c8d',
+    textAlign: 'center',
+  },
+  modeButtonTextActive: {
+    color: '#fff',
   },
   inputSection: {
     marginBottom: 25,
@@ -306,6 +463,11 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
     borderLeftColor: '#27ae60',
   },
+  calculatorCard: {
+    backgroundColor: '#e3f2fd',
+    borderLeftWidth: 4,
+    borderLeftColor: '#2196f3',
+  },
   resultLabel: {
     fontSize: 14,
     color: '#7f8c8d',
@@ -319,6 +481,10 @@ const styles = StyleSheet.create({
   differenceValue: {
     fontSize: 18,
     color: '#27ae60',
+  },
+  calculatorValue: {
+    fontSize: 18,
+    color: '#2196f3',
   },
   adjustmentText: {
     fontSize: 14,
@@ -345,7 +511,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
     lineHeight: 20,
   },
-}); // styles
+});
 
 export default AntennaApp;
 
